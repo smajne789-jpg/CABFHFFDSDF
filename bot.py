@@ -52,8 +52,8 @@ def fmt_amount(value: float) -> str:
     return text if text else "0"
 
 
-def ce(emoji_id: str) -> str:
-    return f'<tg-emoji emoji-id="{emoji_id}"></tg-emoji>'
+def ce(emoji_id: str, fallback: str) -> str:
+    return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
 
 
 @dataclass
@@ -102,23 +102,23 @@ def load_config() -> Config:
 
 
 ICONS = {
-    "home": ce("5291944933295406788"),
-    "profile": ce("5424972470023104089"),
-    "wallet": ce("5291914649481007565"),
-    "deposit": ce("5197434882321567830"),
-    "withdraw": ce("5260379144167890225"),
-    "games": ce("5267014542222723292"),
-    "dice": ce("5890971177484029249"),
-    "darts": ce("5310278924616356636"),
-    "admin": ce("5271912827869737544"),
-    "logs": ce("5271912827869737544"),
-    "success": ce("5462919317832082236"),
-    "error": ce("5210952531676504517"),
-    "warning": ce("5210952531676504517"),
-    "gift": ce("5312123810638483121"),
-    "money": ce("5312123810638483121"),
-    "settings": ce("5312123810638483121"),
-    "channel": ce("5229073750317612510"),
+    "home": ce("5291944933295406788", "🏠"),
+    "profile": ce("5424972470023104089", "👤"),
+    "wallet": ce("5291914649481007565", "💼"),
+    "deposit": ce("5197434882321567830", "➕"),
+    "withdraw": ce("5260379144167890225", "➖"),
+    "games": ce("5267014542222723292", "🎮"),
+    "dice": ce("5890971177484029249", "🎲"),
+    "darts": ce("5310278924616356636", "🎯"),
+    "admin": ce("5271912827869737544", "🛠"),
+    "logs": ce("5271912827869737544", "📡"),
+    "success": ce("5462919317832082236", "✅"),
+    "error": ce("5210952531676504517", "❌"),
+    "warning": ce("5210952531676504517", "⚠️"),
+    "gift": ce("5312123810638483121", "🎁"),
+    "money": ce("5312123810638483121", "💸"),
+    "settings": ce("5312123810638483121", "⚙️"),
+    "channel": ce("5229073750317612510", "📣"),
 }
 
 # Telegram supports custom emoji IDs in HTML message text, but not in inline keyboard button labels.
