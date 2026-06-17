@@ -334,14 +334,30 @@ def main_reply_menu(user_id: int) -> ReplyKeyboardMarkup:
 
 def games_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    builder.button(text="Кубы", callback_data="games:dice", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Дартс", callback_data="games:darts", icon_custom_emoji_id=premium_button_icon("darts"))
+    builder.button(text="Назад", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def dice_games_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
     builder.button(text="Куб чет x2", callback_data="game:dice_even", icon_custom_emoji_id=premium_button_icon("dice"))
     builder.button(text="Куб нечет x2", callback_data="game:dice_odd", icon_custom_emoji_id=premium_button_icon("dice"))
     builder.button(text="Куб произведение 18+ x5", callback_data="game:dice_product_18_plus", icon_custom_emoji_id=premium_button_icon("dice"))
     builder.button(text="Куб 7 x5", callback_data="game:dice_sum_7", icon_custom_emoji_id=premium_button_icon("dice"))
     builder.button(text="Куб 7+ x2", callback_data="game:dice_sum_7_plus", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Назад", callback_data="menu:games", icon_custom_emoji_id=premium_button_icon("home"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def darts_games_menu() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
     builder.button(text="Дартс центр x5", callback_data="game:darts_center", icon_custom_emoji_id=premium_button_icon("darts"))
     builder.button(text="Дартс мимо x5", callback_data="game:darts_miss", icon_custom_emoji_id=premium_button_icon("darts"))
-    builder.button(text="Назад", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
+    builder.button(text="Назад", callback_data="menu:games", icon_custom_emoji_id=premium_button_icon("home"))
     builder.adjust(1)
     return builder.as_markup()
 
@@ -355,6 +371,40 @@ def profile_actions_menu(user_id: int) -> InlineKeyboardMarkup:
         builder.button(text="Админ-панель", callback_data="menu:admin", icon_custom_emoji_id=premium_button_icon("admin"))
     builder.adjust(2, 1, 1)
     return builder.as_markup()
+
+
+def game_result_menu(game_key: str) -> InlineKeyboardMarkup:
+    if game_key.startswith("darts_"):
+        return darts_games_menu()
+    return dice_games_menu()
+
+
+def render_game_result_text(
+    *,
+    title: str,
+    amount: float,
+    multiplier: float,
+    details: str,
+    won: bool,
+    payout: float,
+    balance: float,
+) -> str:
+    status_icon = ICONS["success"] if won else ICONS["error"]
+    status_text = "Выигрыш" if won else "Проигрыш"
+    payout_line = (
+        f"{ICONS['money']} Выплата: <b>{fmt_amount(payout)} {config.asset}</b>\n"
+        if won
+        else ""
+    )
+    return (
+        f"{status_icon} <b>{title}</b>\n\n"
+        f"{ICONS['wallet']} Ставка: <b>{fmt_amount(amount)} {config.asset}</b>\n"
+        f"{ICONS['games']} Коэффициент: <b>x{multiplier}</b>\n"
+        f"{details}\n\n"
+        f"{status_icon} <b>{status_text}</b>\n"
+        f"{payout_line}"
+        f"{ICONS['wallet']} Баланс: <b>{fmt_amount(balance)} {config.asset}</b>"
+    )
 
 
 def admin_menu() -> InlineKeyboardMarkup:
@@ -525,11 +575,11 @@ async def poll_invoices() -> None:
 async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> None:
     user = storage.get_user(user_id)
     if not user or user["balance"] < stake:
-        await bot.send_message(chat_id, f"{ICONS['error']} Недостаточно баланса.", reply_markup=back_to_home())
+        await bot.send_message(chat_id, f"{ICONS['error']} Недостаточно баланса.", reply_markup=game_result_menu(game_key))
         return
     storage.subtract_balance(user_id, stake)
     rule = GAME_RULES[game_key]
-    result_text = ""
+    details = ""
     win = False
     payout = 0.0
 
@@ -537,7 +587,7 @@ async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> 
         dice_message = await bot.send_dice(chat_id, emoji="🎲")
         value = dice_message.dice.value
         win = (value % 2 == 0) if game_key == "dice_even" else (value % 2 == 1)
-        result_text = f"Выпало: <b>{value}</b>"
+        details = f"{ICONS['dice']} Выпало: <b>{value}</b>"
     elif game_key in {"dice_product_18_plus", "dice_sum_7", "dice_sum_7_plus"}:
         first = await bot.send_dice(chat_id, emoji="🎲")
         second = await bot.send_dice(chat_id, emoji="🎲")
@@ -547,13 +597,17 @@ async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> 
         total = v1 + v2
         if game_key == "dice_product_18_plus":
             win = product > 18
-            result_text = f"Кубы: <b>{v1}</b> и <b>{v2}</b>\nСумма: <b>{total}</b>\nПроизведение: <b>{product}</b>"
+            details = (
+                f"{ICONS['dice']} Кубы: <b>{v1}</b> и <b>{v2}</b>\n"
+                f"{ICONS['wallet']} Сумма: <b>{total}</b>\n"
+                f"{ICONS['games']} Произведение: <b>{product}</b>"
+            )
         elif game_key == "dice_sum_7":
             win = total == 7
-            result_text = f"Кубы: <b>{v1}</b> и <b>{v2}</b>\nСумма: <b>{total}</b>"
+            details = f"{ICONS['dice']} Кубы: <b>{v1}</b> и <b>{v2}</b>\n{ICONS['wallet']} Сумма: <b>{total}</b>"
         else:
             win = total > 7
-            result_text = f"Кубы: <b>{v1}</b> и <b>{v2}</b>\nСумма: <b>{total}</b>"
+            details = f"{ICONS['dice']} Кубы: <b>{v1}</b> и <b>{v2}</b>\n{ICONS['wallet']} Сумма: <b>{total}</b>"
     elif game_key in {"darts_center", "darts_miss"}:
         dart_message = await bot.send_dice(chat_id, emoji="🎯")
         value = dart_message.dice.value
@@ -561,34 +615,33 @@ async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> 
             win = value == config.darts_center_value
         else:
             win = value == config.darts_miss_value
-        result_text = f"Результат дартса: <b>{value}</b>"
+        details = f"{ICONS['darts']} Результат дартса: <b>{value}</b>"
 
     if win:
         payout = round(stake * rule["multiplier"], 8)
         storage.add_balance(user_id, payout)
     balance_now = storage.get_user(user_id)["balance"]
-    payout_text = f"Выплата: <b>{fmt_amount(payout)} {config.asset}</b>\n" if win else ""
     storage.create_game(
         user_id=user_id,
         game_key=game_key,
         stake=stake,
         multiplier=rule["multiplier"],
-        result_value=result_text,
+        result_value=details,
         win=win,
         payout=payout,
     )
     await bot.send_message(
         chat_id,
-        (
-            f"{rule['emoji']} <b>{rule['title']}</b>\n\n"
-            f"Ставка: <b>{fmt_amount(stake)} {config.asset}</b>\n"
-            f"{result_text}\n\n"
-            f"{ICONS['success'] if win else ICONS['error']} "
-            f"{'Победа' if win else 'Поражение'}\n"
-            f"{payout_text}"
-            f"Баланс: <b>{fmt_amount(balance_now)} {config.asset}</b>"
+        render_game_result_text(
+            title=rule["title"],
+            amount=stake,
+            multiplier=rule["multiplier"],
+            details=details,
+            won=win,
+            payout=payout,
+            balance=balance_now,
         ),
-        reply_markup=back_to_home(),
+        reply_markup=game_result_menu(game_key),
     )
     await log_action(
         f"{rule['emoji']} <b>Ставка</b>\n"
@@ -618,8 +671,9 @@ async def start_handler(message: Message, state: FSMContext) -> None:
         if needed > 0 and user["total_deposit"] < needed:
             await message.answer(
                 (
-                    f"{ICONS['warning']} Для активации этого чека нужен депозит минимум "
-                    f"<b>{fmt_amount(needed)} {config.asset}</b>."
+                    f"{ICONS['warning']} <b>Чек на {fmt_amount(check['amount'])}$</b>\n\n"
+                    f"Чтобы активировать его, нужно совершить депозит "
+                    f"<b>{fmt_amount(needed)}$</b>."
                 ),
                 reply_markup=main_reply_menu(user_id),
             )
@@ -674,16 +728,8 @@ async def games_button_handler(message: Message) -> None:
         return
     await message.answer(
         (
-            f"{ICONS['games']} <b>Выбери игру</b>\n\n"
-            f"{ICONS['dice']} <b>Раздел Кубы</b>\n"
-            "Куб чет\n"
-            "Куб нечет\n"
-            "Куб произведение 18+\n"
-            "Куб 7\n"
-            "Куб 7+\n\n"
-            f"{ICONS['darts']} <b>Раздел Дартс</b>\n"
-            "Дартс центр\n"
-            "Дартс мимо"
+            f"{ICONS['games']} <b>Раздел Играть</b>\n\n"
+            "Выбери нужный раздел ниже."
         ),
         reply_markup=games_menu(),
     )
@@ -731,18 +777,40 @@ async def games_handler(query: CallbackQuery) -> None:
         return
     await query.message.edit_text(
         (
-            f"{ICONS['games']} <b>Выбери игру</b>\n\n"
-            f"{ICONS['dice']} <b>Раздел Кубы</b>\n"
-            "Куб чет\n"
-            "Куб нечет\n"
-            "Куб произведение 18+\n"
-            "Куб 7\n"
-            "Куб 7+\n\n"
-            f"{ICONS['darts']} <b>Раздел Дартс</b>\n"
-            "Дартс центр\n"
-            "Дартс мимо"
+            f"{ICONS['games']} <b>Раздел Играть</b>\n\n"
+            "Выбери нужный раздел ниже."
         ),
         reply_markup=games_menu(),
+    )
+    await query.answer()
+
+
+@router.callback_query(F.data == "games:dice")
+async def games_dice_handler(query: CallbackQuery) -> None:
+    await ensure_user(query)
+    if not await enforce_subscription(query):
+        return
+    await query.message.edit_text(
+        (
+            f"{ICONS['dice']} <b>Раздел Кубы</b>\n\n"
+            "Выбери игру на кубах."
+        ),
+        reply_markup=dice_games_menu(),
+    )
+    await query.answer()
+
+
+@router.callback_query(F.data == "games:darts")
+async def games_darts_handler(query: CallbackQuery) -> None:
+    await ensure_user(query)
+    if not await enforce_subscription(query):
+        return
+    await query.message.edit_text(
+        (
+            f"{ICONS['darts']} <b>Раздел Дартс</b>\n\n"
+            "Выбери игру на дартсе."
+        ),
+        reply_markup=darts_games_menu(),
     )
     await query.answer()
 
