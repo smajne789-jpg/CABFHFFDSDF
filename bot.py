@@ -366,10 +366,11 @@ def profile_actions_menu(user_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Пополнить", callback_data="menu:deposit", icon_custom_emoji_id=premium_button_icon("deposit"))
     builder.button(text="Вывести", callback_data="menu:withdraw", icon_custom_emoji_id=premium_button_icon("withdraw"))
+    builder.button(text="Статистика", callback_data="menu:stats", icon_custom_emoji_id=premium_button_icon("wallet"))
     builder.button(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
     if is_admin(user_id):
         builder.button(text="Админ-панель", callback_data="menu:admin", icon_custom_emoji_id=premium_button_icon("admin"))
-    builder.adjust(2, 1, 1)
+    builder.adjust(2, 1, 1, 1)
     return builder.as_markup()
 
 
@@ -454,11 +455,24 @@ async def get_profile_text(user_id: int) -> str:
     return (
         f"{ICONS['profile']} <b>Профиль</b>\n\n"
         f"{ICONS['wallet']} Баланс: <b>{fmt_amount(user['balance'])} {config.asset}</b>\n"
-        f"{ICONS['deposit']} Пополнено: <b>{fmt_amount(user['total_deposit'])} {config.asset}</b>\n"
-        f"{ICONS['withdraw']} Выведено: <b>{fmt_amount(user['total_withdraw'])} {config.asset}</b>\n"
         f"{ICONS['settings']} Мин. депозит: <b>{fmt_amount(get_min_deposit())} {config.asset}</b>\n"
         f"{ICONS['settings']} Мин. вывод: <b>{fmt_amount(get_min_withdraw())} {config.asset}</b>\n\n"
-        f"{ICONS['deposit']} Пополнение и {ICONS['withdraw']} вывод доступны кнопками ниже."
+        f"{ICONS['wallet']} Всё остальное смотри в статистике ниже."
+    )
+
+
+async def get_stats_text(user_id: int) -> str:
+    user = storage.get_user(user_id)
+    if not user:
+        return f"{ICONS['error']} Статистика не найдена."
+    profit = round(float(user["balance"]) + float(user["total_withdraw"]) - float(user["total_deposit"]), 8)
+    profit_icon = ICONS["success"] if profit >= 0 else ICONS["error"]
+    return (
+        f"{ICONS['wallet']} <b>Статистика</b>\n\n"
+        f"{ICONS['deposit']} Пополнено: <b>{fmt_amount(user['total_deposit'])} {config.asset}</b>\n"
+        f"{ICONS['withdraw']} Выведено: <b>{fmt_amount(user['total_withdraw'])} {config.asset}</b>\n"
+        f"{ICONS['wallet']} Текущий баланс: <b>{fmt_amount(user['balance'])} {config.asset}</b>\n"
+        f"{profit_icon} Плюс/минус: <b>{fmt_amount(profit)} {config.asset}</b>"
     )
 
 
@@ -767,6 +781,15 @@ async def profile_handler(query: CallbackQuery) -> None:
     if not await enforce_subscription(query):
         return
     await query.message.edit_text(await get_profile_text(user_id), reply_markup=profile_actions_menu(user_id))
+    await query.answer()
+
+
+@router.callback_query(F.data == "menu:stats")
+async def stats_handler(query: CallbackQuery) -> None:
+    user_id = await ensure_user(query)
+    if not await enforce_subscription(query):
+        return
+    await query.message.edit_text(await get_stats_text(user_id), reply_markup=profile_actions_menu(user_id))
     await query.answer()
 
 
