@@ -13,8 +13,15 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 from storage import Storage
 
@@ -54,6 +61,10 @@ def fmt_amount(value: float) -> str:
 
 def ce(emoji_id: str, fallback: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+
+
+def premium_button_icon(slot: str) -> str | None:
+    return PREMIUM_BUTTON_EMOJI_IDS.get(slot)
 
 
 @dataclass
@@ -147,6 +158,26 @@ BUTTON_ICONS = {
     "settings_gate_amount": "📏",
     "channel_add": "📣",
     "channel_remove": "🗑️",
+}
+
+PREMIUM_BUTTON_EMOJI_IDS = {
+    "home": "5291944933295406788",
+    "profile": "5258204546391351475",
+    "wallet": "5291914649481007565",
+    "deposit": "5197434882321567830",
+    "withdraw": "5260379144167890225",
+    "games": "5267014542222723292",
+    "dice": "5890971177484029249",
+    "darts": "5310278924616356636",
+    "admin": "5271912827869737544",
+    "logs": "5271912827869737544",
+    "success": "5462919317832082236",
+    "error": "5210952531676504517",
+    "warning": "5210952531676504517",
+    "gift": "5312123810638483121",
+    "money": "5312123810638483121",
+    "settings": "5312123810638483121",
+    "channel": "5229073750317612510",
 }
 
 
@@ -290,49 +321,71 @@ def main_menu(user_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def main_reply_menu(user_id: int) -> ReplyKeyboardMarkup:
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text="Профиль", icon_custom_emoji_id=premium_button_icon("profile")),
+        KeyboardButton(text="Играть", icon_custom_emoji_id=premium_button_icon("games")),
+    )
+    if is_admin(user_id):
+        builder.row(KeyboardButton(text="Админ-панель", icon_custom_emoji_id=premium_button_icon("admin")))
+    return builder.as_markup(resize_keyboard=True, is_persistent=True)
+
+
 def games_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"{BUTTON_ICONS['dice']} Куб чет x2", callback_data="game:dice_even")
-    builder.button(text=f"🎯 Куб нечет x2", callback_data="game:dice_odd")
-    builder.button(text=f"🧮 Куб произведение 18+ x5", callback_data="game:dice_product_18_plus")
-    builder.button(text=f"7️⃣ Куб 7 x5", callback_data="game:dice_sum_7")
-    builder.button(text=f"➕ Куб 7+ x2", callback_data="game:dice_sum_7_plus")
-    builder.button(text=f"{BUTTON_ICONS['darts']} Дартс центр x5", callback_data="game:darts_center")
-    builder.button(text=f"🌀 Дартс мимо x5", callback_data="game:darts_miss")
-    builder.button(text=f"{BUTTON_ICONS['home']} Назад", callback_data="menu:home")
+    builder.button(text="Куб чет x2", callback_data="game:dice_even", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Куб нечет x2", callback_data="game:dice_odd", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Куб произведение 18+ x5", callback_data="game:dice_product_18_plus", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Куб 7 x5", callback_data="game:dice_sum_7", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Куб 7+ x2", callback_data="game:dice_sum_7_plus", icon_custom_emoji_id=premium_button_icon("dice"))
+    builder.button(text="Дартс центр x5", callback_data="game:darts_center", icon_custom_emoji_id=premium_button_icon("darts"))
+    builder.button(text="Дартс мимо x5", callback_data="game:darts_miss", icon_custom_emoji_id=premium_button_icon("darts"))
+    builder.button(text="Назад", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def profile_actions_menu(user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Пополнить", callback_data="menu:deposit", icon_custom_emoji_id=premium_button_icon("deposit"))
+    builder.button(text="Вывести", callback_data="menu:withdraw", icon_custom_emoji_id=premium_button_icon("withdraw"))
+    builder.button(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
+    if is_admin(user_id):
+        builder.button(text="Админ-панель", callback_data="menu:admin", icon_custom_emoji_id=premium_button_icon("admin"))
+    builder.adjust(2, 1, 1)
     return builder.as_markup()
 
 
 def admin_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"{BUTTON_ICONS['gift']} Создать чек", callback_data="admin:create_check")
-    builder.button(text=f"{BUTTON_ICONS['channel_add']} Добавить канал", callback_data="admin:add_channel")
-    builder.button(text=f"{BUTTON_ICONS['channel_remove']} Удалить канал", callback_data="admin:remove_channel")
-    builder.button(text=f"{BUTTON_ICONS['money_add']} +Баланс", callback_data="admin:add_balance")
-    builder.button(text=f"{BUTTON_ICONS['money_remove']} -Баланс", callback_data="admin:remove_balance")
-    builder.button(text=f"{BUTTON_ICONS['settings_deposit']} Мин. депозит", callback_data="admin:set_min_deposit")
-    builder.button(text=f"{BUTTON_ICONS['settings_withdraw']} Мин. вывод", callback_data="admin:set_min_withdraw")
-    builder.button(text=f"{BUTTON_ICONS['settings_auto']} Авто вывод", callback_data="admin:toggle_auto_withdraw")
-    builder.button(text=f"{BUTTON_ICONS['settings_gate']} Вывод с депозитом", callback_data="admin:toggle_withdraw_gate")
-    builder.button(text=f"{BUTTON_ICONS['settings_gate_amount']} Сумма депозита для вывода", callback_data="admin:set_withdraw_gate_amount")
-    builder.button(text=f"{BUTTON_ICONS['wallet']} Заявки на вывод", callback_data="admin:list_withdrawals")
-    builder.button(text=f"{BUTTON_ICONS['home']} Назад", callback_data="menu:home")
+    builder.button(text="Создать чек", callback_data="admin:create_check", icon_custom_emoji_id=premium_button_icon("gift"))
+    builder.button(text="Добавить канал", callback_data="admin:add_channel", icon_custom_emoji_id=premium_button_icon("channel"))
+    builder.button(text="Удалить канал", callback_data="admin:remove_channel", icon_custom_emoji_id=premium_button_icon("channel"))
+    builder.button(text="+Баланс", callback_data="admin:add_balance", icon_custom_emoji_id=premium_button_icon("money"))
+    builder.button(text="-Баланс", callback_data="admin:remove_balance", icon_custom_emoji_id=premium_button_icon("money"))
+    builder.button(text="Мин. депозит", callback_data="admin:set_min_deposit", icon_custom_emoji_id=premium_button_icon("settings"))
+    builder.button(text="Мин. вывод", callback_data="admin:set_min_withdraw", icon_custom_emoji_id=premium_button_icon("settings"))
+    builder.button(text="Авто вывод", callback_data="admin:toggle_auto_withdraw", icon_custom_emoji_id=premium_button_icon("settings"))
+    builder.button(text="Вывод с депозитом", callback_data="admin:toggle_withdraw_gate", icon_custom_emoji_id=premium_button_icon("settings"))
+    builder.button(text="Сумма депозита для вывода", callback_data="admin:set_withdraw_gate_amount", icon_custom_emoji_id=premium_button_icon("settings"))
+    builder.button(text="Заявки на вывод", callback_data="admin:list_withdrawals", icon_custom_emoji_id=premium_button_icon("wallet"))
+    builder.button(text="Назад", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))
     builder.adjust(2)
     return builder.as_markup()
 
 
 def withdrawal_actions(withdrawal_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"{BUTTON_ICONS['success']} Подтвердить", callback_data=f"withdraw:approve:{withdrawal_id}")
-    builder.button(text=f"{BUTTON_ICONS['error']} Отклонить", callback_data=f"withdraw:reject:{withdrawal_id}")
+    builder.button(text="Подтвердить", callback_data=f"withdraw:approve:{withdrawal_id}", icon_custom_emoji_id=premium_button_icon("success"))
+    builder.button(text="Отклонить", callback_data=f"withdraw:reject:{withdrawal_id}", icon_custom_emoji_id=premium_button_icon("error"))
     builder.adjust(2)
     return builder.as_markup()
 
 
 def back_to_home() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=f"{BUTTON_ICONS['home']} В меню", callback_data="menu:home")]]
+        inline_keyboard=[[InlineKeyboardButton(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))]]
     )
 
 
@@ -354,7 +407,8 @@ async def get_profile_text(user_id: int) -> str:
         f"{ICONS['deposit']} Пополнено: <b>{fmt_amount(user['total_deposit'])} {config.asset}</b>\n"
         f"{ICONS['withdraw']} Выведено: <b>{fmt_amount(user['total_withdraw'])} {config.asset}</b>\n"
         f"{ICONS['settings']} Мин. депозит: <b>{fmt_amount(get_min_deposit())} {config.asset}</b>\n"
-        f"{ICONS['settings']} Мин. вывод: <b>{fmt_amount(get_min_withdraw())} {config.asset}</b>"
+        f"{ICONS['settings']} Мин. вывод: <b>{fmt_amount(get_min_withdraw())} {config.asset}</b>\n\n"
+        f"{ICONS['deposit']} Пополнение и {ICONS['withdraw']} вывод доступны кнопками ниже."
     )
 
 
@@ -401,15 +455,18 @@ async def enforce_subscription(target: Message | CallbackQuery) -> bool:
 async def show_home(target: Message | CallbackQuery, user_id: int) -> None:
     text = (
         f"{ICONS['home']} <b>Главное меню</b>\n\n"
-        f"{ICONS['games']} Играй в кубы и дартс на реальных Telegram бросках.\n"
-        f"{ICONS['deposit']} Пополняй баланс через Crypto Bot.\n"
-        f"{ICONS['withdraw']} Выводи средства через чеки Crypto Bot."
+        f"{ICONS['profile']} Открой профиль, чтобы пополнить баланс или вывести средства.\n"
+        f"{ICONS['games']} Открой раздел игр, чтобы играть в кубы и дартс на реальных Telegram бросках."
     )
     if isinstance(target, CallbackQuery):
-        await target.message.edit_text(text, reply_markup=main_menu(user_id))
+        await target.message.edit_text(text)
+        await target.message.answer(
+            f"{ICONS['home']} Нижнее меню обновлено.",
+            reply_markup=main_reply_menu(user_id),
+        )
         await target.answer()
     else:
-        await target.answer(text, reply_markup=main_menu(user_id))
+        await target.answer(text, reply_markup=main_reply_menu(user_id))
 
 
 async def create_withdraw_check(amount: float) -> tuple[bool, str, int | None, str | None]:
@@ -554,7 +611,7 @@ async def start_handler(message: Message, state: FSMContext) -> None:
         token = args[1][6:]
         check = storage.get_promo_check(token)
         if not check:
-            await message.answer(f"{ICONS['error']} Чек не найден.", reply_markup=main_menu(user_id))
+            await message.answer(f"{ICONS['error']} Чек не найден.", reply_markup=main_reply_menu(user_id))
             return
         user = storage.get_user(user_id)
         needed = float(check["deposit_required"])
@@ -564,7 +621,7 @@ async def start_handler(message: Message, state: FSMContext) -> None:
                     f"{ICONS['warning']} Для активации этого чека нужен депозит минимум "
                     f"<b>{fmt_amount(needed)} {config.asset}</b>."
                 ),
-                reply_markup=main_menu(user_id),
+                reply_markup=main_reply_menu(user_id),
             )
             return
         ok, reason = storage.activate_promo_check(token, user_id)
@@ -576,7 +633,7 @@ async def start_handler(message: Message, state: FSMContext) -> None:
                     f"Начислено: <b>{fmt_amount(check['amount'])} {config.asset}</b>\n"
                     f"Баланс: <b>{fmt_amount(updated['balance'])} {config.asset}</b>"
                 ),
-                reply_markup=main_menu(user_id),
+                reply_markup=main_reply_menu(user_id),
             )
             await log_action(
                 f"{ICONS['gift']} <b>Активирован промо-чек</b>\n"
@@ -585,7 +642,7 @@ async def start_handler(message: Message, state: FSMContext) -> None:
                 f"Amount: <b>{fmt_amount(check['amount'])} {config.asset}</b>"
             )
             return
-        await message.answer(f"{ICONS['error']} {reason}", reply_markup=main_menu(user_id))
+        await message.answer(f"{ICONS['error']} {reason}", reply_markup=main_reply_menu(user_id))
         return
 
     await log_action(
@@ -599,7 +656,54 @@ async def start_handler(message: Message, state: FSMContext) -> None:
 async def cancel_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     user_id = await ensure_user(message)
-    await message.answer(f"{ICONS['warning']} Действие отменено.", reply_markup=main_menu(user_id))
+    await message.answer(f"{ICONS['warning']} Действие отменено.", reply_markup=main_reply_menu(user_id))
+
+
+@router.message(F.text == "Профиль")
+async def profile_button_handler(message: Message) -> None:
+    user_id = await ensure_user(message)
+    if not await enforce_subscription(message):
+        return
+    await message.answer(await get_profile_text(user_id), reply_markup=profile_actions_menu(user_id))
+
+
+@router.message(F.text == "Играть")
+async def games_button_handler(message: Message) -> None:
+    await ensure_user(message)
+    if not await enforce_subscription(message):
+        return
+    await message.answer(
+        (
+            f"{ICONS['games']} <b>Выбери игру</b>\n\n"
+            f"{ICONS['dice']} <b>Раздел Кубы</b>\n"
+            "Куб чет\n"
+            "Куб нечет\n"
+            "Куб произведение 18+\n"
+            "Куб 7\n"
+            "Куб 7+\n\n"
+            f"{ICONS['darts']} <b>Раздел Дартс</b>\n"
+            "Дартс центр\n"
+            "Дартс мимо"
+        ),
+        reply_markup=games_menu(),
+    )
+
+
+@router.message(F.text == "Админ-панель")
+async def admin_button_handler(message: Message) -> None:
+    user_id = await ensure_user(message)
+    if not is_admin(user_id):
+        return
+    await message.answer(
+        (
+            f"{ICONS['admin']} <b>Админ-панель</b>\n\n"
+            f"Автовывод: <b>{'включен' if auto_withdraw_enabled() else 'выключен'}</b>\n"
+            f"Вывод с депозитом: <b>{'включен' if withdraw_gate_enabled() else 'выключен'}</b>\n"
+            f"Мин. депозит: <b>{fmt_amount(get_min_deposit())} {config.asset}</b>\n"
+            f"Мин. вывод: <b>{fmt_amount(get_min_withdraw())} {config.asset}</b>"
+        ),
+        reply_markup=admin_menu(),
+    )
 
 
 @router.callback_query(F.data == "menu:home")
@@ -616,7 +720,7 @@ async def profile_handler(query: CallbackQuery) -> None:
     user_id = await ensure_user(query)
     if not await enforce_subscription(query):
         return
-    await query.message.edit_text(await get_profile_text(user_id), reply_markup=main_menu(user_id))
+    await query.message.edit_text(await get_profile_text(user_id), reply_markup=profile_actions_menu(user_id))
     await query.answer()
 
 
@@ -626,7 +730,18 @@ async def games_handler(query: CallbackQuery) -> None:
     if not await enforce_subscription(query):
         return
     await query.message.edit_text(
-        f"{ICONS['games']} <b>Выбери игру</b>\n\nВсе броски идут через реальные Telegram кубы и дартс.",
+        (
+            f"{ICONS['games']} <b>Выбери игру</b>\n\n"
+            f"{ICONS['dice']} <b>Раздел Кубы</b>\n"
+            "Куб чет\n"
+            "Куб нечет\n"
+            "Куб произведение 18+\n"
+            "Куб 7\n"
+            "Куб 7+\n\n"
+            f"{ICONS['darts']} <b>Раздел Дартс</b>\n"
+            "Дартс центр\n"
+            "Дартс мимо"
+        ),
         reply_markup=games_menu(),
     )
     await query.answer()
@@ -712,8 +827,8 @@ async def deposit_amount_handler(message: Message, state: FSMContext) -> None:
         storage.create_invoice(int(invoice["invoice_id"]), user_id, amount, config.asset, invoice["bot_invoice_url"])
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=f"{BUTTON_ICONS['deposit']} Оплатить", url=invoice["bot_invoice_url"])],
-                [InlineKeyboardButton(text=f"{BUTTON_ICONS['home']} В меню", callback_data="menu:home")],
+                [InlineKeyboardButton(text="Оплатить", url=invoice["bot_invoice_url"], icon_custom_emoji_id=premium_button_icon("deposit"))],
+                [InlineKeyboardButton(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))],
             ]
         )
         await state.clear()
@@ -799,8 +914,8 @@ async def withdraw_amount_handler(message: Message, state: FSMContext) -> None:
         storage.update_withdrawal(withdrawal_id, "paid", check_id=check_id, check_url=check_url, note="auto")
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=f"{BUTTON_ICONS['wallet']} Забрать чек", url=check_url)],
-                [InlineKeyboardButton(text=f"{BUTTON_ICONS['home']} В меню", callback_data="menu:home")],
+                [InlineKeyboardButton(text="Забрать чек", url=check_url, icon_custom_emoji_id=premium_button_icon("wallet"))],
+                [InlineKeyboardButton(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))],
             ]
         )
         await message.answer(
@@ -1006,8 +1121,8 @@ async def admin_remove_channel_handler(query: CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     for channel in channels:
         title = channel["title"] or str(channel["chat_id"])
-        builder.button(text=f"{BUTTON_ICONS['channel_remove']} {title}", callback_data=f"admin:remove_channel:{channel['chat_id']}")
-    builder.button(text=f"{BUTTON_ICONS['home']} Назад", callback_data="menu:admin")
+        builder.button(text=title, callback_data=f"admin:remove_channel:{channel['chat_id']}", icon_custom_emoji_id=premium_button_icon("channel"))
+    builder.button(text="Назад", callback_data="menu:admin", icon_custom_emoji_id=premium_button_icon("home"))
     builder.adjust(1)
     await query.message.edit_text("Выбери канал для удаления.", reply_markup=builder.as_markup())
     await query.answer()
@@ -1308,8 +1423,8 @@ async def approve_withdraw_handler(query: CallbackQuery) -> None:
     storage.add_withdraw_total(item["user_id"], float(item["amount"]))
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f"{BUTTON_ICONS['wallet']} Забрать чек", url=check_url)],
-            [InlineKeyboardButton(text=f"{BUTTON_ICONS['home']} В меню", callback_data="menu:home")],
+            [InlineKeyboardButton(text="Забрать чек", url=check_url, icon_custom_emoji_id=premium_button_icon("wallet"))],
+            [InlineKeyboardButton(text="В меню", callback_data="menu:home", icon_custom_emoji_id=premium_button_icon("home"))],
         ]
     )
     await bot.send_message(
