@@ -510,6 +510,7 @@ async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> 
         payout = round(stake * rule["multiplier"], 8)
         storage.add_balance(user_id, payout)
     balance_now = storage.get_user(user_id)["balance"]
+    payout_text = f"Выплата: <b>{fmt_amount(payout)} {config.asset}</b>\n" if win else ""
     storage.create_game(
         user_id=user_id,
         game_key=game_key,
@@ -527,7 +528,7 @@ async def play_game(chat_id: int, user_id: int, game_key: str, stake: float) -> 
             f"{result_text}\n\n"
             f"{ICONS['success'] if win else ICONS['error']} "
             f"{'Победа' if win else 'Поражение'}\n"
-            f"{f'Выплата: <b>{fmt_amount(payout)} {config.asset}</b>\n' if win else ''}"
+            f"{payout_text}"
             f"Баланс: <b>{fmt_amount(balance_now)} {config.asset}</b>"
         ),
         reply_markup=back_to_home(),
